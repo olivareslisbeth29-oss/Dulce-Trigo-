@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Vollkorn", Georgia, "Times New Roman", serif;
+  --font-sans: "Karla", system-ui, -apple-system, sans-serif;
+
+  --color-linen: #FDF6ED;
+  --color-linen-bright: #FFF8F0;
+  --color-flour: #F5ECE1;
+  --color-border-warm: #E7DACB;
+  --color-espresso: #372A20;
+  --color-espresso-deep: #2A1F17;
+  --color-muted: #6C5B4F;
+  --color-amber-crust: #D97706;
+  --color-caramel: #B45309;
+  --color-caramel-deep: #8D4B00;
+  --color-terracotta: #C25E2E;
+  --color-whatsapp: #22C55E;
+  --color-whatsapp-dark: #15803D;
+
+  --shadow-card: 0 4px 16px -2px rgba(55, 42, 32, 0.05);
+  --shadow-card-hover: 0 10px 24px -4px rgba(55, 42, 32, 0.1);
+  --shadow-floating: 0 10px 30px -4px rgba(55, 42, 32, 0.18);
+  --shadow-modal: 0 20px 40px -8px rgba(55, 42, 32, 0.25);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-sans);
+    background-color: #FDF6ED;
+    color: #372A20;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    text-wrap: balance;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    outline-color: #D97706;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

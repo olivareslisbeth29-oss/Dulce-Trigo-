@@ -1,0 +1,8 @@
+{
+  "name": "Dulce Trigo — Postres a la Carta QR",
+  "description": "Carta digital QR de postres artesanales, tartas horneadas al día, bollería de masa madre y maridaje de café de la panadería Dulce Trigo, con pedido en mesa y por WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
