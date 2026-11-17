@@ -316,6 +316,25 @@ export const TABLE_NUMBERS = [
 ];
 
 export const BAKERY_WHATSAPP_NUMBER = '51935246885';
+export const YAPE_NUMBER_RAW = '935246885';
+export const YAPE_NUMBER_DISPLAY = '935 246 885';
+export const YAPE_HOLDER_NAME = 'Lisbeth Juanita Olivares Alayo';
+export const YAPE_QR_IMAGE = '/assets/aistudio/image_638a2422.png';
+
+export type PaymentMethod = 'yape' | 'plin' | 'pos' | 'efectivo';
+
+export interface PaymentMethodDef {
+  id: PaymentMethod;
+  label: string;
+  subtitle: string;
+}
+
+export const PAYMENT_METHODS: PaymentMethodDef[] = [
+  { id: 'yape', label: 'Yape', subtitle: 'QR o número' },
+  { id: 'plin', label: 'Plin', subtitle: 'Transferencia' },
+  { id: 'pos', label: 'POS / Tarjeta', subtitle: 'Al entregar' },
+  { id: 'efectivo', label: 'Efectivo', subtitle: 'En soles' },
+];
 
 export function formatPrice(amount: number): string {
   return new Intl.NumberFormat('es-PE', {

@@ -11,11 +11,21 @@ import {
   UtensilsCrossed,
   ShoppingBag,
   Clock,
+  Smartphone,
+  CreditCard,
+  Banknote,
+  QrCode,
 } from 'lucide-react';
 import {
   BAKERY_WHATSAPP_NUMBER,
   CartItem,
+  PAYMENT_METHODS,
+  PaymentMethod,
   TABLE_NUMBERS,
+  YAPE_HOLDER_NAME,
+  YAPE_NUMBER_DISPLAY,
+  YAPE_NUMBER_RAW,
+  YAPE_QR_IMAGE,
   formatPrice,
 } from '../data/menuData';
 import { ServiceMode } from './HeroSection';
@@ -27,6 +37,8 @@ interface ConfirmedOrder {
   tableNumber: string;
   pickupTime: string;
   guestName: string;
+  paymentMethod: PaymentMethod;
+  cashPayWith: string;
   items: CartItem[];
   total: number;
   whatsappText: string;
@@ -57,6 +69,10 @@ function generateOrderCode(): string {
   return `DT-${num}`;
 }
 
+function getPaymentLabel(method: PaymentMethod): string {
+  return PAYMENT_METHODS.find((m) => m.id === method)?.label ?? 'Yape';
+}
+
 export function CartDrawer({
   isOpen,
   items,
@@ -71,13 +87,23 @@ export function CartDrawer({
 }: CartDrawerProps) {
   const [guestName, setGuestName] = useState('');
   const [pickupTime, setPickupTime] = useState(PICKUP_SLOTS[0]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('yape');
+  const [cashPayWith, setCashPayWith] = useState('');
   const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [copiedNumber, setCopiedNumber] = useState(false);
+  const [isQrExpanded, setIsQrExpanded] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (isQrExpanded) {
+          setIsQrExpanded(false);
+        } else {
+          onClose();
+        }
+      }
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
@@ -85,7 +111,7 @@ export function CartDrawer({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, isQrExpanded, onClose]);
 
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
@@ -104,6 +130,13 @@ export function CartDrawer({
 
     const nameLine = guestName.trim() ? `Nombre: ${guestName.trim()}` : '';
 
+    let paymentLine = `Método de pago: ${getPaymentLabel(paymentMethod)}`;
+    if (paymentMethod === 'efectivo' && cashPayWith.trim()) {
+      paymentLine += ` (Pago con ${cashPayWith.trim()})`;
+    } else if (paymentMethod === 'yape' || paymentMethod === 'plin') {
+      paymentLine += ` (${YAPE_NUMBER_DISPLAY})`;
+    }
+
     const itemLines = items.map((entry) => {
       const extrasText =
         entry.extras.length > 0
@@ -113,17 +146,25 @@ export function CartDrawer({
       return `• ${entry.quantity}x ${entry.dessert.name} (${entry.portion.label})${extrasText}${noteText} — ${formatPrice(entry.unitPrice * entry.quantity)}`;
     });
 
+    const receiptHint =
+      paymentMethod === 'yape' || paymentMethod === 'plin'
+        ? 'Adjunto mi captura de pago por aquí.'
+        : '';
+
     return [
       header,
       serviceLine,
       nameLine,
+      paymentLine,
       '',
       ...itemLines,
       '',
-      `Total estimado: ${formatPrice(subtotal)}`,
+      `Total a pagar: ${formatPrice(subtotal)}`,
+      receiptHint,
     ]
       .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
-      .join('\n');
+      .join('\n')
+      .trim();
   };
 
   const currentWhatsAppText = buildWhatsAppMessage();
@@ -147,6 +188,8 @@ export function CartDrawer({
       tableNumber,
       pickupTime,
       guestName: guestName.trim(),
+      paymentMethod,
+      cashPayWith: cashPayWith.trim(),
       items: [...items],
       total: subtotal,
       whatsappText: buildWhatsAppMessage(code),
@@ -166,13 +209,39 @@ export function CartDrawer({
     }
   };
 
+  const handleCopyYapeNumber = async () => {
+    try {
+      await navigator.clipboard.writeText(YAPE_NUMBER_RAW);
+      setCopiedNumber(true);
+      window.setTimeout(() => setCopiedNumber(false), 2000);
+    } catch {
+      setCopiedNumber(false);
+    }
+  };
+
   const handleCloseDrawer = () => {
+    setIsQrExpanded(false);
     onClose();
   };
 
   const handleStartNewOrder = () => {
     setConfirmedOrder(null);
+    setCashPayWith('');
+    setIsQrExpanded(false);
     onClose();
+  };
+
+  const renderPaymentIcon = (id: PaymentMethod) => {
+    switch (id) {
+      case 'yape':
+        return <QrCode className="h-4 w-4 shrink-0" aria-hidden="true" />;
+      case 'plin':
+        return <Smartphone className="h-4 w-4 shrink-0" aria-hidden="true" />;
+      case 'pos':
+        return <CreditCard className="h-4 w-4 shrink-0" aria-hidden="true" />;
+      case 'efectivo':
+        return <Banknote className="h-4 w-4 shrink-0" aria-hidden="true" />;
+    }
   };
 
   if (!isOpen) return null;
@@ -244,6 +313,69 @@ export function CartDrawer({
                   </span>
                 </div>
 
+                {/* Payment summary inside receipt */}
+                <div className="mt-3 rounded-xl border border-[#E7DACB] bg-[#FDF6ED] px-3.5 py-2.5 text-xs text-[#554336]">
+                  <span className="font-semibold text-[#372A20]">
+                    Método de pago:{' '}
+                  </span>
+                  <span>{getPaymentLabel(confirmedOrder.paymentMethod)}</span>
+                  {confirmedOrder.paymentMethod === 'efectivo' &&
+                    confirmedOrder.cashPayWith && (
+                      <span> · Pago con {confirmedOrder.cashPayWith}</span>
+                    )}
+                </div>
+
+                {(confirmedOrder.paymentMethod === 'yape' ||
+                  confirmedOrder.paymentMethod === 'plin') && (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#E7DACB] bg-white p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setIsQrExpanded(true)}
+                        aria-label="Ampliar código QR de Yape"
+                        className="h-14 w-14 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[#E7DACB] bg-[#742284]"
+                      >
+                        <img
+                          src={YAPE_QR_IMAGE}
+                          alt="Código QR de Yape Dulce Trigo"
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#372A20]">
+                          {confirmedOrder.paymentMethod === 'yape'
+                            ? 'Yapea al número o QR'
+                            : 'Plinea al número o QR'}
+                        </p>
+                        <p className="font-sans text-sm font-bold text-[#8D4B00] tabular-nums">
+                          {YAPE_NUMBER_DISPLAY}
+                        </p>
+                        <p className="truncate text-[11px] text-[#6C5B4F]">
+                          {YAPE_HOLDER_NAME}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyYapeNumber}
+                      className="inline-flex min-h-[36px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[#E7DACB] bg-[#FDF6ED] px-3 py-1.5 text-xs font-semibold text-[#372A20] hover:bg-[#F5ECE1]"
+                    >
+                      {copiedNumber ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-[#15803D]" aria-hidden="true" />
+                          <span>Copiado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 <ul className="mt-5 divide-y divide-[#F5ECE1] text-sm">
                   {confirmedOrder.items.map((entry) => (
                     <li
@@ -291,7 +423,12 @@ export function CartDrawer({
                   className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#16A34A] px-5 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#15803D]"
                 >
                   <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                  <span>Enviar copia por WhatsApp</span>
+                  <span>
+                    {confirmedOrder.paymentMethod === 'yape' ||
+                    confirmedOrder.paymentMethod === 'plin'
+                      ? 'Enviar comprobante por WhatsApp'
+                      : 'Enviar copia por WhatsApp'}
+                  </span>
                 </a>
 
                 <button
@@ -489,6 +626,146 @@ export function CartDrawer({
                   </li>
                 ))}
               </ul>
+
+              {/* Payment Method Selector */}
+              <fieldset className="mt-5 rounded-2xl border border-[#E7DACB] bg-white p-4">
+                <legend className="px-1 font-serif text-lg font-semibold text-[#372A20]">
+                  Método de pago
+                </legend>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {PAYMENT_METHODS.map((method) => {
+                    const isSelected = paymentMethod === method.id;
+                    return (
+                      <button
+                        key={method.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => setPaymentMethod(method.id)}
+                        className={`flex min-h-[54px] cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                          isSelected
+                            ? 'border-[#372A20] bg-[#372A20] text-white'
+                            : 'border-[#E7DACB] bg-[#FDF6ED] text-[#372A20] hover:border-[#D8C2B4] hover:bg-[#F5ECE1]'
+                        }`}
+                      >
+                        <span
+                          className={
+                            isSelected ? 'text-[#FFB77D]' : 'text-[#8D4B00]'
+                          }
+                        >
+                          {renderPaymentIcon(method.id)}
+                        </span>
+                        <span className="min-w-0 leading-tight">
+                          <span className="block truncate text-sm font-semibold">
+                            {method.label}
+                          </span>
+                          <span
+                            className={`block truncate text-[11px] ${
+                              isSelected ? 'text-[#E7DACB]' : 'text-[#6C5B4F]'
+                            }`}
+                          >
+                            {method.subtitle}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Yape / Plin Payment Details & QR */}
+                {(paymentMethod === 'yape' || paymentMethod === 'plin') && (
+                  <div className="mt-3.5 rounded-xl border border-[#E7DACB] bg-[#FDF6ED] p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-[#8D4B00]">
+                          {paymentMethod === 'yape'
+                            ? 'Paga con Yape (QR o número)'
+                            : 'Paga con Plin (número o QR interoperable)'}
+                        </p>
+                        <p className="mt-1 font-sans text-lg font-bold text-[#372A20] tabular-nums">
+                          {YAPE_NUMBER_DISPLAY}
+                        </p>
+                        <p className="text-xs text-[#6C5B4F]">
+                          Titular: {YAPE_HOLDER_NAME}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyYapeNumber}
+                        className="inline-flex min-h-[38px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[#E7DACB] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#372A20] transition-colors hover:bg-[#F5ECE1]"
+                      >
+                        {copiedNumber ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-[#15803D]" aria-hidden="true" />
+                            <span>Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-col items-center rounded-xl border border-[#E7DACB] bg-white p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setIsQrExpanded(true)}
+                        aria-label="Ver QR de Yape en tamaño grande"
+                        className="group relative w-44 cursor-pointer overflow-hidden rounded-xl border border-[#E7DACB] bg-[#742284] shadow-sm transition-transform hover:scale-[1.02]"
+                      >
+                        <img
+                          src={YAPE_QR_IMAGE}
+                          alt="Código QR de Yape de Lisbeth Juanita Olivares Alayo"
+                          referrerPolicy="no-referrer"
+                          className="h-auto w-full object-contain"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsQrExpanded(true)}
+                        className="mt-2 cursor-pointer text-xs font-semibold text-[#8D4B00] underline-offset-2 hover:underline"
+                      >
+                        Tocar para ampliar el QR
+                      </button>
+                      <p className="mt-1 text-xs text-[#6C5B4F]">
+                        Monto exacto:{' '}
+                        <strong className="font-bold text-[#372A20] tabular-nums">
+                          {formatPrice(subtotal)}
+                        </strong>
+                        . Luego envía tu captura por WhatsApp.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* POS Details */}
+                {paymentMethod === 'pos' && (
+                  <p className="mt-3 rounded-xl bg-[#FDF6ED] px-3.5 py-2.5 text-xs leading-relaxed text-[#554336]">
+                    {serviceMode === 'mesa'
+                      ? `Llevaremos el POS inalámbrico a la Mesa ${tableNumber}. Aceptamos tarjetas Visa, Mastercard y pagos sin contacto.`
+                      : 'Paga con tarjeta de crédito o débito en barra al recoger tu pedido.'}
+                  </p>
+                )}
+
+                {/* Cash Details */}
+                {paymentMethod === 'efectivo' && (
+                  <div className="mt-3 rounded-xl bg-[#FDF6ED] p-3">
+                    <label className="block text-xs font-semibold text-[#554336]">
+                      ¿Con cuánto pagarás? (opcional, para llevar vuelto)
+                      <input
+                        type="text"
+                        value={cashPayWith}
+                        onChange={(e) => setCashPayWith(e.target.value)}
+                        placeholder="Ej. S/ 50.00 o monto exacto"
+                        className="mt-1.5 w-full rounded-lg border border-[#E7DACB] bg-white px-3 py-2 text-sm text-[#372A20] placeholder:text-[#887364] focus:border-[#D97706] focus:outline-none focus:ring-2 focus:ring-[#D97706]/15"
+                      />
+                    </label>
+                  </div>
+                )}
+              </fieldset>
             </div>
 
             {/* Sticky Checkout Footer */}
@@ -521,7 +798,11 @@ export function CartDrawer({
                     className="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full bg-[#16A34A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#15803D]"
                   >
                     <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                    <span>Pedir por WhatsApp</span>
+                    <span>
+                      {paymentMethod === 'yape' || paymentMethod === 'plin'
+                        ? 'Enviar pedido y constancia'
+                        : 'Pedir por WhatsApp'}
+                    </span>
                   </a>
 
                   <button
@@ -543,6 +824,66 @@ export function CartDrawer({
           </>
         )}
       </div>
+
+      {/* Expanded Yape QR Lightbox */}
+      {isQrExpanded && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsQrExpanded(false);
+          }}
+          className="fixed inset-0 z-60 flex items-center justify-center bg-[#2A1F17]/80 p-5 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-[#E7DACB] bg-white p-4 text-center shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={() => setIsQrExpanded(false)}
+              aria-label="Cerrar vista ampliada del QR de Yape"
+              className="absolute top-3 right-3 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#2A1F17]/80 text-white hover:bg-[#2A1F17]"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <div className="overflow-hidden rounded-2xl bg-[#742284]">
+              <img
+                src={YAPE_QR_IMAGE}
+                alt="Código QR de Yape de Lisbeth Juanita Olivares Alayo"
+                referrerPolicy="no-referrer"
+                className="mx-auto max-h-[62vh] w-full object-contain"
+              />
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2 px-1">
+              <div className="text-left">
+                <p className="text-xs text-[#6C5B4F]">Número Yape / Plin</p>
+                <p className="text-base font-bold text-[#372A20] tabular-nums">
+                  {YAPE_NUMBER_DISPLAY}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyYapeNumber}
+                className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full bg-[#372A20] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2A1F17]"
+              >
+                {copiedNumber ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-[#22C55E]" aria-hidden="true" />
+                    <span>Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Copiar número</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
